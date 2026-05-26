@@ -4,13 +4,14 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const pool = require('./config/db'); // 아까 만든 DB 설정 불러오기
-
+const userRoutes = require('./routes/userRoutes');
 const app = express();
 
 // 1. 보안 미들웨어 및 기본 설정
 app.use(helmet()); 
 app.use(cors());
 app.use(express.json());
+app.use('/api/users', userRoutes);
 
 // 2. DB 연결 테스트 라우트
 app.get('/api/db-check', async (req, res) => {
