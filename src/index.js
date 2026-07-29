@@ -1,5 +1,5 @@
 // src/index.js
-require('dotenv').config(); // 가장 상단에 위치해야 합니다!
+require('dotenv').config(); // 가장 상단에 위치해야 함!
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

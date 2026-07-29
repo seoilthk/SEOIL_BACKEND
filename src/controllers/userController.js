@@ -1,5 +1,5 @@
 // src/controllers/userController.js
-const User = require('../config/db'); // DB 연결
+const pool = require('../config/db'); // DB 연결
 const bcrypt = require('bcrypt');     // 비밀번호 암호화
 const jwt = require('jsonwebtoken');  // 인증 토큰
 
