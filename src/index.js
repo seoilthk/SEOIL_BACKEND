@@ -43,5 +43,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
     console.log(`로컬 주소: http://localhost:${PORT}`);
-    console.log(`휴대폰 접속 주소: http://172.31.4.207:${PORT}`);
+    console.log(`휴대폰 접속 주소: http://192.168.112.28:${PORT}`);
 });
