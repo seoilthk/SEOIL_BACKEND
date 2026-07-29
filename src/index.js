@@ -24,6 +24,15 @@ app.get('/api/db-check', async (req, res) => {
     }
 });
 
+app.get("/api/test", (req, res) => {
+  console.log("프론트엔드 연결 테스트 요청 수신");
+
+  res.json({
+    success: true,
+    message: "백엔드 연결 성공",
+  });
+});
+
 // 3. 기본 루트
 app.get('/', (req, res) => {
     res.json({ message: 'Seoil Graduation Planner Backend is running securely.' });
@@ -33,4 +42,6 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
+    console.log(`로컬 주소: http://localhost:${PORT}`);
+    console.log(`휴대폰 접속 주소: http://172.31.4.207:${PORT}`);
 });
