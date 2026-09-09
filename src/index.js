@@ -34,6 +34,12 @@ app.get("/api/test", (req, res) => {
 });
 
 // 3. 기본 루트
+// 프론트엔드 통신 테스트용 주소 추가
+app.post('/api/test-login', (req, res) => {
+    console.log("프론트엔드에서 보낸 데이터:", req.body);
+    res.json({ success: true, message: "백엔드 로그인 통신 성공!" });
+});
+
 app.get('/', (req, res) => {
     res.json({ message: 'Seoil Graduation Planner Backend is running securely.' });
 });
