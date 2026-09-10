@@ -3,26 +3,20 @@ const pool = require('../config/db'); // DB 연결
 const bcrypt = require('bcrypt');     // 비밀번호 암호화
 const jwt = require('jsonwebtoken');  // 인증 토큰
 
-// 1. 회원가입
-exports.register = async (req, res) => {
-    const { student_id, password, name, entry_year, dept_id } = req.body;
-    try {
-        // 비밀번호 암호화 (Salt Rounds: 10)
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const sql = 'INSERT INTO Users (student_id, password_hash, name, entry_year, dept_id) VALUES (?, ?, ?, ?, ?)';
-        await pool.query(sql, [student_id, hashedPassword, name, entry_year, dept_id]);
-        
-        res.status(201).json({ message: '회원가입 성공!' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: '회원가입 실패' });
-    }
-};
+const ALLOWED_STUDENT_IDS = [
+    '202103755',
+    '202103706'
+];
 
-// 2. 로그인
+// 1. 로그인
 exports.login = async (req, res) => {
     const { student_id, password } = req.body;
+
+    // 허용된 학번인지 먼저 검사
+    if (!ALLOWED_STUDENT_IDS.includes(student_id)) {
+        return res.status(403).json({ error: '시스템 접근이 허용되지 않은 학번입니다.' });
+    }
+
     try {
         const [rows] = await pool.query('SELECT * FROM Users WHERE student_id = ?', [student_id]);
         if (rows.length === 0) return res.status(401).json({ error: '아이디 또는 비밀번호가 틀렸습니다.' });
