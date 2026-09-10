@@ -13,6 +13,15 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/users', userRoutes);
 
+// 라우터들보다 맨 위에 배치해서 무조건 먼저 가로채도록 설정
+app.post('/api/test-login', (req, res) => {
+    console.log("🔥 드디어 도착한 데이터:", req.body);
+    res.json({
+        success: true,
+        message: "백엔드 로그인 통신 성공!"
+    });
+});
+
 // 2. DB 연결 테스트 라우트
 app.get('/api/db-check', async (req, res) => {
     try {
