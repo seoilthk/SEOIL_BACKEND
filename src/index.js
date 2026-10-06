@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const pool = require('./config/db'); // 아까 만든 DB 설정 불러오기
 const userRoutes = require('./routes/userRoutes');
+const courseRoutes = require('./routes/courseRoutes');
 const app = express();
 
 // 1. 보안 미들웨어 및 기본 설정
@@ -12,6 +13,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use('/api/users', userRoutes);
+app.use('/api/courses', courseRoutes);
 
 // 라우터들보다 맨 위에 배치해서 무조건 먼저 가로채도록 설정
 app.post('/api/test-login', (req, res) => {
