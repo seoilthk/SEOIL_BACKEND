@@ -23,7 +23,8 @@ exports.login = async (req, res) => {
 
         const user = rows[0];
         // 비밀번호 비교
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+        //const isMatch = await bcrypt.compare(password, user.password_hash);
+        const isMatch = (password === user.password);
         if (!isMatch) return res.status(401).json({ error: '아이디 또는 비밀번호가 틀렸습니다.' });
 
         // JWT 토큰 발급 (보안 키는 .env에서 가져옴)
