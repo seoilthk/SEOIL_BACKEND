@@ -112,9 +112,3 @@ exports.getGrades = async (req, res) => {
         return res.status(500).json({ message: '성적 조회 중 오류가 발생했습니다.' });
     }
 };
-// 파일 가장 하단에 추가
-module.exports = {
-    login,
-    getMe,
-    getGrades
-};
