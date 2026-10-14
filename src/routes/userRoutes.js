@@ -6,7 +6,6 @@ const userController = require('../controllers/userController');
 const analysisController = require('../controllers/analysisController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
-
 // 로그인
 router.post('/login', userController.login);
 
