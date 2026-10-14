@@ -1,7 +1,7 @@
 // src/controllers/userController.js
 const pool = require('../config/db');
 const jwt = require('jsonwebtoken');
-
+const isMatch = await bcrypt.compare(password, user.password_hash);
 const ALLOWED_STUDENT_IDS = [
     '202103755',
     '202103706'
@@ -25,7 +25,7 @@ exports.login = async (req, res) => {
 
         const user = rows[0];
 
-        const isMatch = (password === user.password);
+        const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             return res.status(401).json({ message: '비밀번호가 일치하지 않습니다.' });
         }
