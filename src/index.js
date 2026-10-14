@@ -6,14 +6,21 @@ const helmet = require('helmet');
 const pool = require('./config/db'); // 아까 만든 DB 설정 불러오기
 const userRoutes = require('./routes/userRoutes');
 const courseRoutes = require('./routes/courseRoutes');
+const userController = require('./controllers/userController');
 const app = express();
 
 // 1. 보안 미들웨어 및 기본 설정
 app.use(helmet()); 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
+// 프론트엔드가 요청하는 /api/login 주소를 직접 처리하도록 추가
+app.post('/api/login', userController.login);
 
 // 라우터들보다 맨 위에 배치해서 무조건 먼저 가로채도록 설정
 app.post('/api/test-login', (req, res) => {
@@ -57,8 +64,9 @@ app.get('/', (req, res) => {
 
 // 4. 서버 포트 설정
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
     console.log(`로컬 주소: http://localhost:${PORT}`);
     console.log(`휴대폰 접속 주소: http://192.168.112.28:${PORT}`);
+    console.log(`🚀 서버 가동 중: http://0.0.0.0:${PORT}`);
 });

@@ -8,9 +8,12 @@ exports.getGraduationAnalysis = async (req, res) => {
     try {
         // 1. 해당 학생의 입학연도, 학과, 그리고 학과별 졸업 기준 학점 조회 (JOIN 활용)
         const userQuery = `
-            SELECT u.entry_year, u.dept_id, r.total_target, r.major_target, r.general_target
+            SELECT u.entry_year, u.dept_id, u.name,
+                   r.total_target, r.major_target, r.general_target,
+                   d.dept_name, d.course_length
             FROM Users u
             JOIN Grad_Requirements r ON u.dept_id = r.dept_id AND u.entry_year = r.entry_year
+            JOIN Departments d ON u.dept_id = d.dept_id
             WHERE u.student_id = ?
         `;
         const [userRows] = await pool.query(userQuery, [student_id]);
@@ -81,6 +84,10 @@ exports.getGraduationAnalysis = async (req, res) => {
         // 5. 프론트엔드가 바로 사용할 수 있게 가공해서 응답 보냄 (JSON)
         res.json({
             student_id,
+            name: reqs.name,
+            dept_name: reqs.dept_name,
+            entry_year: reqs.entry_year,
+            course_length: reqs.course_length,
             gpa, // 평점 평균
             summary: {
                 total_earned: totalEarnedCredits,
