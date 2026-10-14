@@ -6,8 +6,6 @@ const userController = require('../controllers/userController');
 const analysisController = require('../controllers/analysisController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
-// 회원가입
-router.post('/register', userController.register);
 
 // 로그인
 router.post('/login', userController.login);
