@@ -1,8 +1,7 @@
 // src/controllers/analysisController.js
-const pool = require('../config/db');
+const pool = require('../config/database'); // 프로젝트의 실제 DB 설정 파일 경로 확인 필요
 
 exports.getGraduationAnalysis = async (req, res) => {
-    // authMiddleware를 거쳐서 들어오므로 req.user에서 student_id를 꺼낼 수 있습니다.
     const { student_id } = req.user;
 
     try {
@@ -50,20 +49,18 @@ exports.getGraduationAnalysis = async (req, res) => {
         };
 
         gradeRows.forEach(row => {
-            // F학점이거나 Pass 여부가 false인 경우 이수 학점에서 제외 (예외 처리 완료)
             if (row.score === 'F' || !row.is_pass) return;
 
             const credit = parseInt(row.credit);
             totalEarnedCredits += credit;
 
-            // 전공 / 교양 및 기타 이수 학점 분류 분기문
-            if (row.type === '전필' || row.type === '전선') {
+            // 전공 / 교양 분류 ('전필', '전공필수', '전선', '전공선택' 모두 호환되도록 처리)
+            if (row.type && (row.type.includes('전필') || row.type.includes('전공'))) {
                 majorEarnedCredits += credit;
             } else {
-                generalEarnedCredits += credit; // 교양 및 일반선택 합산
+                generalEarnedCredits += credit; 
             }
 
-            // P(Pass) 과목은 평점(GPA) 계산에서 제외하는 예외 처리
             if (row.score !== 'P') {
                 const gradePoint = scoreValues[row.score] || 0.0;
                 totalGradePoints += (credit * gradePoint);
@@ -71,24 +68,24 @@ exports.getGraduationAnalysis = async (req, res) => {
             }
         });
 
-        // 평점 평균(GPA) 산출 (0 나누기 방지 예외 처리)
+        // 평점 평균(GPA) 산출
         const gpa = totalAppliedCreditsForGPA > 0 
             ? (totalGradePoints / totalAppliedCreditsForGPA).toFixed(2) 
             : "0.00";
 
-        // 4. 졸업 요건 대비 부족한 학점 계산 (음수가 나오면 0으로 처리)
+        // 4. 졸업 요건 대비 부족한 학점 계산
         const remainingTotal = Math.max(0, reqs.total_target - totalEarnedCredits);
         const remainingMajor = Math.max(0, reqs.major_target - majorEarnedCredits);
         const remainingGeneral = Math.max(0, reqs.general_target - generalEarnedCredits);
 
-        // 5. 프론트엔드가 바로 사용할 수 있게 가공해서 응답 보냄 (JSON)
+        // 5. 프론트엔드 응답 데이터 구조
         res.json({
             student_id,
             name: reqs.name,
             dept_name: reqs.dept_name,
             entry_year: reqs.entry_year,
             course_length: reqs.course_length,
-            gpa, // 평점 평균
+            gpa,
             summary: {
                 total_earned: totalEarnedCredits,
                 total_target: reqs.total_target,
