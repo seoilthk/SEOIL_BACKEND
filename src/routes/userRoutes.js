@@ -1,7 +1,7 @@
 // src/routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
-
+const recommendationController = require('../controllers/recommendationController');
 const userController = require('../controllers/userController');
 const analysisController = require('../controllers/analysisController');
 const authMiddleware = require('../middlewares/authMiddleware');
@@ -36,6 +36,13 @@ router.get(
     '/grades',
     authMiddleware,
     userController.getGrades
+);
+
+// 추천 교양 과목 조회 API 엔드포인트
+router.get(
+    '/recommendations/general',
+    authMiddleware, // 인증이 필요하다면 유지, 필요없다면 제거 가능
+    recommendationController.getRecommendedGeneralCourses
 );
 
 module.exports = router;
