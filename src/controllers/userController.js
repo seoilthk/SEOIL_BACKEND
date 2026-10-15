@@ -106,6 +106,7 @@ exports.getMe = async (req, res) => {
                 u.name,
                 u.entry_year,
                 u.academic_status,
+                u.transfer,
                 d.dept_name,
                 d.course_length
             FROM Users u
