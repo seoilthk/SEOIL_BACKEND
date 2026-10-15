@@ -130,7 +130,8 @@ exports.getMe = async (req, res) => {
             entry_year: user.entry_year,
             academic_status: user.academic_status || '재학',
             dept_name: user.dept_name,
-            course_length: user.course_length
+            course_length: user.course_length,
+            transfer: user.transfer
         });
 
     } catch (error) {
