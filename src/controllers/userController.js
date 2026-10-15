@@ -131,7 +131,7 @@ exports.getMe = async (req, res) => {
             academic_status: user.academic_status || '재학',
             dept_name: user.dept_name,
             course_length: user.course_length,
-            transfer: user.transfer
+            transfer: user.transfer || '일반입학'
         });
 
     } catch (error) {
