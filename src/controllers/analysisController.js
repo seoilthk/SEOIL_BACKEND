@@ -1,5 +1,5 @@
 // src/controllers/analysisController.js
-const pool = require('../config/database'); // 프로젝트의 실제 DB 설정 파일 경로 확인 필요
+const pool = require('../config/db.js'); // 프로젝트의 실제 DB 설정 파일 경로 확인 필요
 
 exports.getGraduationAnalysis = async (req, res) => {
     const { student_id } = req.user;
