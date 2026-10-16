@@ -157,14 +157,14 @@ exports.getGrades = async (req, res) => {
                 c.course_name AS name,
                 c.credit,
                 c.type,
-                ug.score,
-                ug.is_pass,
-                ug.semester
+                ug.grade AS score,
+                ug.status AS is_pass,
+                c.semester
             FROM User_Grades ug
-            JOIN Courses c
+            JOIN Department_Courses c
                 ON ug.course_id = c.course_id
             WHERE ug.student_id = ?
-            ORDER BY ug.semester DESC`,
+            ORDER BY c.semester DESC`,
             [student_id]
         );
 

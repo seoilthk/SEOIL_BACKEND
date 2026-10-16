@@ -23,10 +23,10 @@ exports.getGraduationAnalysis = async (req, res) => {
         const reqs = userRows[0]; // 졸업 기준 데이터
 
         // 2. 학생의 전체 성적 및 이수 과목 정보 조회 (JOIN 활용)
-        const gradesQuery = `
-            SELECT ug.score, ug.is_pass, c.credit, c.type
+       const gradesQuery = `
+            SELECT ug.grade AS score, ug.status AS is_pass, c.credit, c.type
             FROM User_Grades ug
-            JOIN Courses c ON ug.course_id = c.course_id
+            JOIN Department_Courses c ON ug.course_id = c.course_id
             WHERE ug.student_id = ?
         `;
         const [gradeRows] = await pool.query(gradesQuery, [student_id]);
