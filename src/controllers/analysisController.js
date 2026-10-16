@@ -12,7 +12,7 @@ exports.getGraduationAnalysis = async (req, res) => {
             });
         }
 
-        // 2. 학생 정보 및 졸업 기준 조회
+        // 2. 학생 정보 및 학과별 졸업 기준 조회
         const studentQuery = `
             SELECT
                 s.student_id,
@@ -42,7 +42,6 @@ exports.getGraduationAnalysis = async (req, res) => {
         const student = studentRows[0];
 
         // 3. 졸업 기준
-        // 현재는 학과 테이블 기준이며 입학연도별 기준은 추후 확장
         const defaultCriteria = {
             minTotalCredits: 110,
             minMajorCredits: 60,
@@ -68,7 +67,7 @@ exports.getGraduationAnalysis = async (req, res) => {
                 student.min_general_required ?? defaultCriteria.minGeneralRequired
         };
 
-        // 4. 학생의 성적 및 과목 정보 조회
+        // 4. 학생의 이수 성적 및 과목 정보 조회
         const gradeQuery = `
             SELECT
                 ug.grade_id,
@@ -85,12 +84,12 @@ exports.getGraduationAnalysis = async (req, res) => {
             JOIN Department_Courses c
                 ON ug.course_id = c.course_id
             WHERE ug.student_id = ?
-            ORDER BY ug.grade_id DESC
         `;
 
         const [rows] = await db.query(gradeQuery, [studentId]);
 
-        // 5. 이수완료 과목만 필터링 (F 제외)
+        // 5. 미이수 및 F 과목 제외
+        // 중복 과목은 제거하지 않음
         const completedCourses = rows.filter(row => {
             const isCompleted =
                 row.status === '이수완료' ||
@@ -104,40 +103,18 @@ exports.getGraduationAnalysis = async (req, res) => {
             return isCompleted && !isFail;
         });
 
-        // 6. 중복 과목 제거
-        // 과목 코드가 있으면 코드 기준
-        // 없으면 과목명 기준
-        // grade_id가 큰 데이터를 우선 유지
-        const courseMap = new Map();
-
-        completedCourses.forEach(row => {
-            const code = String(row.course_code ?? '').trim();
-            const name = String(row.course_name ?? '').trim();
-
-            const courseKey = code
-                ? `CODE:${code}`
-                : name
-                    ? `NAME:${name}`
-                    : `ID:${row.course_id}`;
-
-            if (!courseMap.has(courseKey)) {
-                courseMap.set(courseKey, row);
-            }
-        });
-
-        const uniqueCourses = Array.from(courseMap.values());
-
-        // 7. 학점 계산
+        // 6. 학점 계산
         let totalCredits = 0;
         let majorCredits = 0;
         let generalCredits = 0;
         let generalRequiredCredits = 0;
         let generalRequiredCount = 0;
 
-        uniqueCourses.forEach(row => {
+        completedCourses.forEach(row => {
             const credit = Number(row.credit) || 0;
             const type = String(row.type ?? '').trim();
 
+            // 총 이수학점
             totalCredits += credit;
 
             // 전공 학점
@@ -160,14 +137,17 @@ exports.getGraduationAnalysis = async (req, res) => {
                 generalCredits += credit;
 
                 // 교양필수 학점
-                if (type === '교필' || type === '교양필수') {
+                if (
+                    type === '교필' ||
+                    type === '교양필수'
+                ) {
                     generalRequiredCredits += credit;
                     generalRequiredCount += 1;
                 }
             }
         });
 
-        // 8. 부족 학점 계산
+        // 7. 부족 학점 계산
         const deficits = {
             deficitTotal: Math.max(
                 0,
@@ -190,7 +170,7 @@ exports.getGraduationAnalysis = async (req, res) => {
             )
         };
 
-        // 9. 졸업요건 충족 여부
+        // 8. 졸업요건 충족 여부
         const results = {
             isTotalSatisfied:
                 totalCredits >= criteria.minTotalCredits,
@@ -212,7 +192,7 @@ exports.getGraduationAnalysis = async (req, res) => {
             results.isGeneralSatisfied &&
             results.isGeneralRequiredSatisfied;
 
-        // 10. 프론트엔드에 결과 전달
+        // 9. 프론트엔드에 결과 전달
         return res.status(200).json({
             success: true,
 
@@ -237,7 +217,8 @@ exports.getGraduationAnalysis = async (req, res) => {
 
             results,
 
-            grades: uniqueCourses
+            // 중복 제거 없이 이수완료 과목 반환
+            grades: completedCourses
         });
 
     } catch (error) {
