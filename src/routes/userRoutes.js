@@ -5,6 +5,7 @@ const recommendationController = require('../controllers/recommendationControlle
 const userController = require('../controllers/userController');
 const analysisController = require('../controllers/analysisController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const departmentCourseController = require('../controllers/departmentCourseController');
 
 // 로그인
 router.post('/login', userController.login);
@@ -43,6 +44,13 @@ router.get(
     '/recommendations/general',
     authMiddleware, // 인증이 필요하다면 유지, 필요없다면 제거 가능
     recommendationController.getRecommendedGeneralCourses
+);
+
+// 전공 과목 조회 API
+router.get(
+    '/department-courses',
+    authMiddleware,
+    departmentCourseController.getDepartmentCourses
 );
 
 module.exports = router;
