@@ -148,35 +148,51 @@ exports.getMe = async (req, res) => {
 // GET /api/users/grades
 // =============================================
 exports.getGrades = async (req, res) => {
-    const { student_id } = req.user;
-
     try {
-        const [rows] = await pool.query(
-            `SELECT
+        const studentId = req.user.student_id;
+        
+        // 1. 프론트엔드 명세서에 완벽하게 맞춘 컬럼명(Alias) 및 학기(semester) 문자열 조합
+        const query = `
+            SELECT 
                 ug.grade_id,
-                c.course_name AS name,
+                c.course_name AS name,       -- 프론트엔드 요구 키: name
                 c.credit,
                 c.type,
-                ug.grade AS score,
-                ug.status AS is_pass,
-                c.semester
+                ug.grade AS score,           -- 프론트엔드 요구 키: score
+                ug.status AS is_pass,        -- 프론트엔드 요구 키: is_pass
+                -- 입학년도 + 학년 계산하여 '2023-1학기' 포맷으로 동적 생성
+                CONCAT(s.admission_year + c.year - 1, '-', c.semester, '학기') AS semester
             FROM User_Grades ug
-            JOIN Department_Courses c
-                ON ug.course_id = c.course_id
+            JOIN Department_Courses c ON ug.course_id = c.course_id
+            JOIN Students s ON ug.student_id = s.student_id
             WHERE ug.student_id = ?
-            ORDER BY c.semester DESC`,
-            [student_id]
-        );
+        `;
+        
+        const [grades] = await pool.query(query, [studentId]);
+        
+        // 2. 재수강 및 중복 이수 과목 제거 로직 (과목명 기준)
+        const courseMap = new Map();
+        
+        grades.forEach(row => {
+            // 이수 완료된 유효한 성적만 필터링
+            const isPassed = row.is_pass === '이수완료' || row.is_pass === '1' || row.is_pass === true || row.score !== 'F';
+            if (isPassed) {
+                // 동일한 과목명(name)이 들어오면 덮어씌워서 중복 합산 방지
+                courseMap.set(row.name, row); 
+            }
+        });
+        
+        // 중복 제거된 최종 배열
+        const uniqueGrades = Array.from(courseMap.values());
 
-        return res.status(200).json({
-            grades: rows
+        // 3. 프론트엔드가 요구하는 { "grades": 배열 } 형태로 반환
+        return res.status(200).json({ 
+            success: true, 
+            grades: uniqueGrades 
         });
 
     } catch (error) {
-        console.error('성적 조회 에러:', error);
-
-        return res.status(500).json({
-            message: '성적 조회 중 오류가 발생했습니다.'
-        });
+        console.error('성적 목록 조회 에러:', error);
+        return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
     }
 };
