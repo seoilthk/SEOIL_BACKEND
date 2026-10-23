@@ -1,276 +1,229 @@
-const db = require('../config/db.js');
+const db = require("../config/db.js");
 
 exports.getGraduationAnalysis = async (req, res) => {
-    try {
-        // 1. JWT에서 학번 확인
-        const studentId = req.user?.student_id;
+  try {
+    const studentId = req.user?.student_id;
 
-        if (!studentId) {
-            return res.status(401).json({
-                success: false,
-                message: '인증 정보가 유효하지 않습니다.'
-            });
-        }
-
-        // 2. 학생 정보 및 졸업요건 조회
-        const studentQuery = `
-            SELECT
-                u.student_id,
-                u.entry_year,
-                u.dept_id,
-                d.dept_name,
-                gr.req_id,
-                gr.total_target,
-                gr.major_target,
-                gr.general_target
-            FROM Users u
-            JOIN Departments d
-                ON u.dept_id = d.dept_id
-            JOIN Grad_Requirements gr
-                ON u.dept_id = gr.dept_id
-                AND u.entry_year = gr.entry_year
-            WHERE u.student_id = ?
-        `;
-
-        const [studentRows] = await db.query(
-            studentQuery,
-            [studentId]
-        );
-
-        if (studentRows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: '학생 정보 또는 졸업요건을 찾을 수 없습니다.'
-            });
-        }
-
-        // 중복 졸업요건 방지
-        if (studentRows.length > 1) {
-            console.error(
-                '중복된 졸업요건:',
-                studentRows.map(row => row.req_id)
-            );
-
-            return res.status(409).json({
-                success: false,
-                message: '동일 학과 및 입학연도에 졸업요건이 중복 등록되어 있습니다.'
-            });
-        }
-
-        const student = studentRows[0];
-
-        // 3. 졸업 기준
-        // 현재 확정된 소프트웨어공학과 기준
-        // 추후 다른 학과 지원 시 DB 컬럼 확장 필요
-        const criteria = {
-            minTotalCredits: Number(student.total_target),
-            minMajorCredits: Number(student.major_target),
-            minGeneralCredits: Number(student.general_target),
-            maxGeneralCredits: 14,
-            minGeneralRequiredCount: 1
-        };
-
-        // 4. 이수 성적 조회
-        const gradeQuery = `
-            SELECT
-                ug.grade_id,
-                ug.grade AS score,
-                ug.status AS is_pass,
-                c.course_id,
-                c.course_code,
-                c.course_name AS name,
-                c.credit,
-                c.type,
-                c.semester,
-                c.year
-            FROM User_Grades ug
-            JOIN Department_Courses c
-                ON ug.course_id = c.course_id
-            WHERE ug.student_id = ?
-            ORDER BY ug.grade_id ASC
-        `;
-
-        const [rows] = await db.query(
-            gradeQuery,
-            [studentId]
-        );
-
-        // 5. 재수강 중복 제거
-        // 같은 course_code는 가장 최근 이수 기록 기준
-        const courseMap = new Map();
-
-        rows.forEach(row => {
-            const code = String(
-                row.course_code ?? row.course_id
-            );
-
-            courseMap.set(code, row);
-        });
-
-        // 6. 이수 완료 및 F 제외
-        const completedCourses = Array.from(
-            courseMap.values()
-        ).filter(row => {
-            const isCompleted =
-                row.is_pass === '이수완료' ||
-                row.is_pass === '1' ||
-                row.is_pass === 1 ||
-                row.is_pass === true;
-
-            const isFail =
-                String(row.score ?? '')
-                    .trim()
-                    .toUpperCase() === 'F';
-
-            return isCompleted && !isFail;
-        });
-
-        // 7. 학점 계산
-        let totalCredits = 0;
-        let majorCredits = 0;
-        let generalCredits = 0;
-        let generalRequiredCredits = 0;
-        let generalRequiredCount = 0;
-
-        completedCourses.forEach(row => {
-            const credit = Number(row.credit) || 0;
-            const type = String(row.type ?? '').trim();
-
-            totalCredits += credit;
-
-            if (
-                type === '전필' ||
-                type === '전선' ||
-                type === '전공필수' ||
-                type === '전공선택'
-            ) {
-                majorCredits += credit;
-            } else if (
-                type === '교필' ||
-                type === '교선' ||
-                type === '교양필수' ||
-                type === '교양선택'
-            ) {
-                generalCredits += credit;
-
-                if (
-                    type === '교필' ||
-                    type === '교양필수'
-                ) {
-                    generalRequiredCredits += credit;
-                    generalRequiredCount += 1;
-                }
-            }
-        });
-
-        // 8. 교양 최대 인정학점 적용
-        const recognizedGeneralCredits = Math.min(
-            generalCredits,
-            criteria.maxGeneralCredits
-        );
-
-        const excessGeneralCredits = Math.max(
-            0,
-            generalCredits - criteria.maxGeneralCredits
-        );
-
-        const recognizedTotalCredits =
-            totalCredits - excessGeneralCredits;
-
-        // 9. 부족 학점 계산
-        const deficits = {
-            deficitTotal: Math.max(
-                0,
-                criteria.minTotalCredits - recognizedTotalCredits
-            ),
-
-            deficitMajor: Math.max(
-                0,
-                criteria.minMajorCredits - majorCredits
-            ),
-
-            deficitGeneral: Math.max(
-                0,
-                criteria.minGeneralCredits - generalCredits
-            ),
-
-            deficitGeneralRequired: Math.max(
-                0,
-                criteria.minGeneralRequiredCount -
-                    generalRequiredCount
-            )
-        };
-
-        // 10. 졸업요건 충족 여부
-        const results = {
-            isTotalSatisfied:
-                recognizedTotalCredits >=
-                criteria.minTotalCredits,
-
-            isMajorSatisfied:
-                majorCredits >= criteria.minMajorCredits,
-
-            isGeneralSatisfied:
-                generalCredits >= criteria.minGeneralCredits,
-
-            isGeneralRequiredSatisfied:
-                generalRequiredCount >=
-                criteria.minGeneralRequiredCount
-        };
-
-        results.isGraduated =
-            results.isTotalSatisfied &&
-            results.isMajorSatisfied &&
-            results.isGeneralSatisfied &&
-            results.isGeneralRequiredSatisfied;
-
-        // 11. 졸업 진행률
-        const graduationProgress = Math.min(
-            100,
-            Math.round(
-                (
-                    recognizedTotalCredits /
-                    criteria.minTotalCredits
-                ) * 1000
-            ) / 10
-        );
-
-        // 12. 프론트엔드 응답
-        return res.status(200).json({
-            success: true,
-
-            studentId,
-
-            student: {
-                departmentName: student.dept_name,
-                admissionYear: student.entry_year
-            },
-
-            summary: {
-                totalCredits,
-                majorCredits,
-                generalCredits,
-                generalRequiredCredits,
-                generalRequiredCount,
-                recognizedGeneralCredits,
-                excessGeneralCredits,
-                recognizedTotalCredits,
-                graduationProgress
-            },
-
-            deficits,
-            criteria,
-            results,
-
-            grades: completedCourses
-        });
-
-    } catch (error) {
-        console.error('졸업요건 분석 에러:', error);
-
-        return res.status(500).json({
-            success: false,
-            message: '졸업요건 분석 중 서버 오류가 발생했습니다.'
-        });
+    if (!studentId) {
+      return res.status(401).json({
+        success: false,
+        message: "인증 정보가 유효하지 않습니다.",
+      });
     }
+
+    // 1. 사용자 정보 및 졸업요건 조회
+    const studentQuery = `
+      SELECT
+        u.student_id,
+        u.entry_year,
+        d.dept_name,
+        gr.total_target,
+        gr.major_target,
+        gr.general_target,
+        gr.general_max,
+        gr.general_required_count
+      FROM Users u
+      JOIN Departments d
+        ON u.dept_id = d.dept_id
+      JOIN Grad_Requirements gr
+        ON u.dept_id = gr.dept_id
+        AND u.entry_year = gr.entry_year
+      WHERE u.student_id = ?
+    `;
+
+    const [studentRows] = await db.query(studentQuery, [studentId]);
+
+    if (studentRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "학생 정보 또는 졸업요건을 찾을 수 없습니다.",
+      });
+    }
+
+    if (studentRows.length > 1) {
+      return res.status(409).json({
+        success: false,
+        message: "중복된 졸업요건이 존재합니다.",
+      });
+    }
+
+    const student = studentRows[0];
+
+    const criteria = {
+      minTotalCredits: Number(student.total_target),
+      minMajorCredits: Number(student.major_target),
+      minGeneralCredits: Number(student.general_target),
+      maxGeneralCredits: Number(student.general_max),
+      minGeneralRequiredCount: Number(
+        student.general_required_count
+      ),
+    };
+
+    // 2. 성적 데이터 조회
+    const gradeQuery = `
+      SELECT
+        ug.grade_id,
+        ug.grade,
+        ug.status,
+        c.course_id,
+        c.course_code,
+        c.course_name,
+        c.credit,
+        c.type
+      FROM User_Grades ug
+      JOIN Department_Courses c
+        ON ug.course_id = c.course_id
+      WHERE ug.student_id = ?
+      ORDER BY ug.grade_id ASC
+    `;
+
+    const [gradeRows] = await db.query(gradeQuery, [studentId]);
+
+    // 3. 이수 완료 + F학점 제외
+    const completedRows = gradeRows.filter((row) => {
+      const status = String(row.status ?? "").trim();
+      const grade = String(row.grade ?? "").trim().toUpperCase();
+
+      return (
+        ["이수완료", "1", "true"].includes(status) &&
+        grade !== "F"
+      );
+    });
+
+    // 4. 테스트 데이터 중복 처리
+    // 현재는 과목명을 기준으로 1회만 인정하는 임시 방식
+    const courseMap = new Map();
+
+    completedRows.forEach((row) => {
+      const key = String(row.course_name ?? "").trim();
+      if (key) {
+        courseMap.set(key, row);
+      }
+    });
+
+    const completedCourses = Array.from(courseMap.values());
+
+    // 5. 학점 계산
+    let totalCredits = 0;
+    let majorCredits = 0;
+    let generalCredits = 0;
+    let generalRequiredCredits = 0;
+    let generalRequiredCount = 0;
+
+    completedCourses.forEach((row) => {
+      const credit = Number(row.credit) || 0;
+      const type = String(row.type ?? "").trim();
+
+      totalCredits += credit;
+
+      if (
+        ["전필", "전선", "전공필수", "전공선택"].includes(type)
+      ) {
+        majorCredits += credit;
+      } else if (
+        ["교필", "교선", "교양필수", "교양선택"].includes(type)
+      ) {
+        generalCredits += credit;
+
+        if (["교필", "교양필수"].includes(type)) {
+          generalRequiredCredits += credit;
+          generalRequiredCount++;
+        }
+      }
+    });
+
+    // 6. 교양 최대 인정학점 적용
+    const excessGeneralCredits = Math.max(
+      0,
+      generalCredits - criteria.maxGeneralCredits
+    );
+
+    const recognizedTotalCredits = Math.max(
+      0,
+      totalCredits - excessGeneralCredits
+    );
+
+    // 7. 부족 학점 계산
+    const deficits = {
+      deficitTotal: Math.max(
+        0,
+        criteria.minTotalCredits - recognizedTotalCredits
+      ),
+      deficitMajor: Math.max(
+        0,
+        criteria.minMajorCredits - majorCredits
+      ),
+      deficitGeneral: Math.max(
+        0,
+        criteria.minGeneralCredits - generalCredits
+      ),
+      deficitGeneralRequired: Math.max(
+        0,
+        criteria.minGeneralRequiredCount - generalRequiredCount
+      ),
+    };
+
+    // 8. 졸업요건 충족 여부
+    const results = {
+      isTotalSatisfied:
+        recognizedTotalCredits >= criteria.minTotalCredits,
+
+      isMajorSatisfied:
+        majorCredits >= criteria.minMajorCredits,
+
+      isGeneralSatisfied:
+        generalCredits >= criteria.minGeneralCredits,
+
+      isGeneralRequiredSatisfied:
+        generalRequiredCount >= criteria.minGeneralRequiredCount,
+    };
+
+    results.isGraduated =
+      results.isTotalSatisfied &&
+      results.isMajorSatisfied &&
+      results.isGeneralSatisfied &&
+      results.isGeneralRequiredSatisfied;
+
+    // 9. 졸업 진행률
+    const progress = Math.min(
+      100,
+      Math.round(
+        (recognizedTotalCredits / criteria.minTotalCredits) * 100
+      )
+    );
+
+    // 10. 결과 반환
+    return res.status(200).json({
+      success: true,
+      studentId,
+
+      student: {
+        departmentName: student.dept_name,
+        admissionYear: student.entry_year,
+      },
+
+      summary: {
+        totalCredits,
+        recognizedTotalCredits,
+        majorCredits,
+        generalCredits,
+        generalRequiredCredits,
+        generalRequiredCount,
+        excessGeneralCredits,
+      },
+
+      deficits,
+      criteria,
+      results,
+      progress,
+      grades: completedCourses,
+    });
+  } catch (error) {
+    console.error("졸업요건 분석 에러:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "졸업요건 분석 중 서버 오류가 발생했습니다.",
+    });
+  }
 };
