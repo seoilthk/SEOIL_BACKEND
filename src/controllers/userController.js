@@ -155,6 +155,7 @@ exports.getGrades = async (req, res) => {
         const query = `
             SELECT 
                 ug.grade_id,
+                c.course_code,               -- 중복 제거 기준 키
                 c.course_name AS name,       -- 프론트엔드 요구 키: name
                 c.credit,
                 c.type,
@@ -166,19 +167,22 @@ exports.getGrades = async (req, res) => {
             JOIN Department_Courses c ON ug.course_id = c.course_id
             JOIN Students s ON ug.student_id = s.student_id
             WHERE ug.student_id = ?
+            ORDER BY ug.grade_id ASC
         `;
         
         const [grades] = await pool.query(query, [studentId]);
         
-        // 2. 재수강 및 중복 이수 과목 제거 로직 (과목명 기준)
+        // 2. 재수강 및 중복 이수 과목 제거 로직 (course_code 기준)
+        // - 동일 과목이 여러 학기에 개설(course_id 다름, course_code 같음)되어도 1개만 유지
+        // - ORDER BY grade_id ASC 후 덮어쓰므로, 재수강 시 가장 최근 성적이 최종 반영됨
         const courseMap = new Map();
         
         grades.forEach(row => {
             // 이수 완료된 유효한 성적만 필터링
             const isPassed = row.is_pass === '이수완료' || row.is_pass === '1' || row.is_pass === true || row.score !== 'F';
             if (isPassed) {
-                // 동일한 과목명(name)이 들어오면 덮어씌워서 중복 합산 방지
-                courseMap.set(row.name, row); 
+                // course_code 기준으로 중복 제거 (같은 과목을 다른 학기에 이수해도 1개만 유지)
+                courseMap.set(row.course_code, row);
             }
         });
         
