@@ -2,7 +2,7 @@ const db = require('../config/db.js');
 
 exports.getGraduationAnalysis = async (req, res) => {
     try {
-        // 1. JWT 인증 정보에서 학번 가져오기
+        // 1. JWT에서 학번 확인
         const studentId = req.user?.student_id;
 
         if (!studentId) {
@@ -12,25 +12,30 @@ exports.getGraduationAnalysis = async (req, res) => {
             });
         }
 
-        // 2. 학생 정보 및 학과별 졸업 기준 조회
+        // 2. 학생 정보 및 졸업요건 조회
         const studentQuery = `
             SELECT
-                s.student_id,
-                s.department_id,
-                s.admission_year,
-                d.department_name,
-                d.min_total_credits,
-                d.min_major_credits,
-                d.min_general_credits,
-                d.max_general_credits,
-                d.min_general_required
-            FROM Students s
+                u.student_id,
+                u.entry_year,
+                u.dept_id,
+                d.dept_name,
+                gr.req_id,
+                gr.total_target,
+                gr.major_target,
+                gr.general_target
+            FROM Users u
             JOIN Departments d
-                ON s.department_id = d.department_id
-            WHERE s.student_id = ?
+                ON u.dept_id = d.dept_id
+            JOIN Grad_Requirements gr
+                ON u.dept_id = gr.dept_id
+                AND u.entry_year = gr.entry_year
+            WHERE u.student_id = ?
         `;
 
-        const [studentRows] = await db.query(studentQuery, [studentId]);
+        const [studentRows] = await db.query(
+            studentQuery,
+            [studentId]
+        );
 
         if (studentRows.length === 0) {
             return res.status(404).json({
@@ -39,43 +44,41 @@ exports.getGraduationAnalysis = async (req, res) => {
             });
         }
 
+        // 중복 졸업요건 방지
+        if (studentRows.length > 1) {
+            console.error(
+                '중복된 졸업요건:',
+                studentRows.map(row => row.req_id)
+            );
+
+            return res.status(409).json({
+                success: false,
+                message: '동일 학과 및 입학연도에 졸업요건이 중복 등록되어 있습니다.'
+            });
+        }
+
         const student = studentRows[0];
 
         // 3. 졸업 기준
-        const defaultCriteria = {
-            minTotalCredits: 110,
-            minMajorCredits: 60,
-            minGeneralCredits: 8,
-            maxGeneralCredits: 14,
-            minGeneralRequired: 2
-        };
-
+        // 현재 확정된 소프트웨어공학과 기준
+        // 추후 다른 학과 지원 시 DB 컬럼 확장 필요
         const criteria = {
-            minTotalCredits:
-                student.min_total_credits ?? defaultCriteria.minTotalCredits,
-
-            minMajorCredits:
-                student.min_major_credits ?? defaultCriteria.minMajorCredits,
-
-            minGeneralCredits:
-                student.min_general_credits ?? defaultCriteria.minGeneralCredits,
-
-            maxGeneralCredits:
-                student.max_general_credits ?? defaultCriteria.maxGeneralCredits,
-
-            minGeneralRequired:
-                student.min_general_required ?? defaultCriteria.minGeneralRequired
+            minTotalCredits: Number(student.total_target),
+            minMajorCredits: Number(student.major_target),
+            minGeneralCredits: Number(student.general_target),
+            maxGeneralCredits: 14,
+            minGeneralRequiredCount: 1
         };
 
-        // 4. 학생의 이수 성적 및 과목 정보 조회
+        // 4. 이수 성적 조회
         const gradeQuery = `
             SELECT
                 ug.grade_id,
-                ug.grade,
-                ug.status,
+                ug.grade AS score,
+                ug.status AS is_pass,
                 c.course_id,
                 c.course_code,
-                c.course_name,
+                c.course_name AS name,
                 c.credit,
                 c.type,
                 c.semester,
@@ -84,26 +87,45 @@ exports.getGraduationAnalysis = async (req, res) => {
             JOIN Department_Courses c
                 ON ug.course_id = c.course_id
             WHERE ug.student_id = ?
+            ORDER BY ug.grade_id ASC
         `;
 
-        const [rows] = await db.query(gradeQuery, [studentId]);
+        const [rows] = await db.query(
+            gradeQuery,
+            [studentId]
+        );
 
-        // 5. 미이수 및 F 과목 제외
-        // 중복 과목은 제거하지 않음
-        const completedCourses = rows.filter(row => {
+        // 5. 재수강 중복 제거
+        // 같은 course_code는 가장 최근 이수 기록 기준
+        const courseMap = new Map();
+
+        rows.forEach(row => {
+            const code = String(
+                row.course_code ?? row.course_id
+            );
+
+            courseMap.set(code, row);
+        });
+
+        // 6. 이수 완료 및 F 제외
+        const completedCourses = Array.from(
+            courseMap.values()
+        ).filter(row => {
             const isCompleted =
-                row.status === '이수완료' ||
-                row.status === '1' ||
-                row.status === 1 ||
-                row.status === true;
+                row.is_pass === '이수완료' ||
+                row.is_pass === '1' ||
+                row.is_pass === 1 ||
+                row.is_pass === true;
 
             const isFail =
-                String(row.grade ?? '').trim().toUpperCase() === 'F';
+                String(row.score ?? '')
+                    .trim()
+                    .toUpperCase() === 'F';
 
             return isCompleted && !isFail;
         });
 
-        // 6. 학점 계산
+        // 7. 학점 계산
         let totalCredits = 0;
         let majorCredits = 0;
         let generalCredits = 0;
@@ -114,10 +136,8 @@ exports.getGraduationAnalysis = async (req, res) => {
             const credit = Number(row.credit) || 0;
             const type = String(row.type ?? '').trim();
 
-            // 총 이수학점
             totalCredits += credit;
 
-            // 전공 학점
             if (
                 type === '전필' ||
                 type === '전선' ||
@@ -125,10 +145,7 @@ exports.getGraduationAnalysis = async (req, res) => {
                 type === '전공선택'
             ) {
                 majorCredits += credit;
-            }
-
-            // 교양 학점
-            else if (
+            } else if (
                 type === '교필' ||
                 type === '교선' ||
                 type === '교양필수' ||
@@ -136,7 +153,6 @@ exports.getGraduationAnalysis = async (req, res) => {
             ) {
                 generalCredits += credit;
 
-                // 교양필수 학점
                 if (
                     type === '교필' ||
                     type === '교양필수'
@@ -147,11 +163,25 @@ exports.getGraduationAnalysis = async (req, res) => {
             }
         });
 
-        // 7. 부족 학점 계산
+        // 8. 교양 최대 인정학점 적용
+        const recognizedGeneralCredits = Math.min(
+            generalCredits,
+            criteria.maxGeneralCredits
+        );
+
+        const excessGeneralCredits = Math.max(
+            0,
+            generalCredits - criteria.maxGeneralCredits
+        );
+
+        const recognizedTotalCredits =
+            totalCredits - excessGeneralCredits;
+
+        // 9. 부족 학점 계산
         const deficits = {
             deficitTotal: Math.max(
                 0,
-                criteria.minTotalCredits - totalCredits
+                criteria.minTotalCredits - recognizedTotalCredits
             ),
 
             deficitMajor: Math.max(
@@ -166,24 +196,26 @@ exports.getGraduationAnalysis = async (req, res) => {
 
             deficitGeneralRequired: Math.max(
                 0,
-                criteria.minGeneralRequired - generalRequiredCredits
+                criteria.minGeneralRequiredCount -
+                    generalRequiredCount
             )
         };
 
-        // 8. 졸업요건 충족 여부
+        // 10. 졸업요건 충족 여부
         const results = {
             isTotalSatisfied:
-                totalCredits >= criteria.minTotalCredits,
+                recognizedTotalCredits >=
+                criteria.minTotalCredits,
 
             isMajorSatisfied:
                 majorCredits >= criteria.minMajorCredits,
 
             isGeneralSatisfied:
-                generalCredits >= criteria.minGeneralCredits &&
-                generalCredits <= criteria.maxGeneralCredits,
+                generalCredits >= criteria.minGeneralCredits,
 
             isGeneralRequiredSatisfied:
-                generalRequiredCredits >= criteria.minGeneralRequired
+                generalRequiredCount >=
+                criteria.minGeneralRequiredCount
         };
 
         results.isGraduated =
@@ -192,15 +224,26 @@ exports.getGraduationAnalysis = async (req, res) => {
             results.isGeneralSatisfied &&
             results.isGeneralRequiredSatisfied;
 
-        // 9. 프론트엔드에 결과 전달
+        // 11. 졸업 진행률
+        const graduationProgress = Math.min(
+            100,
+            Math.round(
+                (
+                    recognizedTotalCredits /
+                    criteria.minTotalCredits
+                ) * 1000
+            ) / 10
+        );
+
+        // 12. 프론트엔드 응답
         return res.status(200).json({
             success: true,
 
             studentId,
 
             student: {
-                departmentName: student.department_name,
-                admissionYear: student.admission_year
+                departmentName: student.dept_name,
+                admissionYear: student.entry_year
             },
 
             summary: {
@@ -208,16 +251,17 @@ exports.getGraduationAnalysis = async (req, res) => {
                 majorCredits,
                 generalCredits,
                 generalRequiredCredits,
-                generalRequiredCount
+                generalRequiredCount,
+                recognizedGeneralCredits,
+                excessGeneralCredits,
+                recognizedTotalCredits,
+                graduationProgress
             },
 
             deficits,
-
             criteria,
-
             results,
 
-            // 중복 제거 없이 이수완료 과목 반환
             grades: completedCourses
         });
 
