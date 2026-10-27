@@ -65,14 +65,25 @@ exports.getGraduationAnalysis = async (req, res) => {
         ug.grade_id,
         ug.grade,
         ug.status,
-        c.course_id,
-        c.course_code,
-        c.course_name,
-        c.credit,
-        c.type
+        -- 기존 로직 호환을 위해 전공 테이블의 PK(course_id)가 없으면 교양 테이블의 PK(rec_id)를 대체 사용
+        COALESCE(c.course_id, rgc.rec_id) AS course_id,
+        ug.course_id AS course_code,
+        
+        -- 전공 테이블에 없으면 교양 테이블에서 데이터 가져오기
+        COALESCE(c.course_name, rgc.course_name) AS course_name,
+        COALESCE(c.credit, rgc.credit) AS credit,
+        
+        -- 교양 테이블은 type(이수구분) 컬럼이 없으므로 '교양선택'으로 기본값 고정
+        COALESCE(c.type, '교양선택') AS type
+        
       FROM User_Grades ug
-     JOIN Department_Courses c
+      
+      -- 핵심: INNER JOIN 대신 두 테이블 모두 LEFT JOIN 처리
+      LEFT JOIN Department_Courses c 
         ON ug.course_id = c.course_code
+      LEFT JOIN Recommended_General_Courses rgc 
+        ON ug.course_id = rgc.course_code
+        
       WHERE ug.student_id = ?
       ORDER BY ug.grade_id ASC
     `;
