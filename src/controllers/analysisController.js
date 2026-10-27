@@ -73,8 +73,13 @@ exports.getGraduationAnalysis = async (req, res) => {
         COALESCE(c.course_name, rgc.course_name) AS course_name,
         COALESCE(c.credit, rgc.credit) AS credit,
         
-        -- 교양 테이블은 type(이수구분) 컬럼이 없으므로 '교양선택'으로 기본값 고정
-        COALESCE(c.type, '교선') AS type
+        -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
+        CASE 
+            WHEN c.type IN ('전필', '전공필수') THEN '전필'
+            WHEN c.type IN ('전선', '전공선택') THEN '전선'
+            WHEN c.type IN ('교필', '교양필수') THEN '교필'
+            ELSE '교선' 
+        END AS type
         
       FROM User_Grades ug
       

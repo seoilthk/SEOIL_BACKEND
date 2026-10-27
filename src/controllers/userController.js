@@ -162,8 +162,13 @@ exports.getGrades = async (req, res) => {
                 -- 전공 테이블에 학점이 없으면 교양 테이블에서 학점을 가져옴
                 COALESCE(c.credit, rgc.credit) AS credit,
                 
-                -- 교양 테이블에는 type 컬럼이 없으므로, 기본값을 '교양선택'으로 지정
-                COALESCE(c.type, '교선') AS type,
+                -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
+                CASE 
+            WHEN c.type IN ('전필', '전공필수') THEN '전필'
+            WHEN c.type IN ('전선', '전공선택') THEN '전선'
+            WHEN c.type IN ('교필', '교양필수') THEN '교필'
+            ELSE '교선' 
+        END AS type,
                 
                 ug.grade AS score,
                 ug.status AS is_pass,
