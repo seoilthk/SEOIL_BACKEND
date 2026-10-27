@@ -163,7 +163,7 @@ exports.getGrades = async (req, res) => {
                 COALESCE(c.credit, rgc.credit) AS credit,
                 
                 -- 교양 테이블에는 type 컬럼이 없으므로, 기본값을 '교양선택'으로 지정
-                COALESCE(c.type, '교양선택') AS type,
+                COALESCE(c.type, '교선') AS type,
                 
                 ug.grade AS score,
                 ug.status AS is_pass,

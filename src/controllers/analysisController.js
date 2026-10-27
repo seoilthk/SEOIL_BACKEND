@@ -74,7 +74,7 @@ exports.getGraduationAnalysis = async (req, res) => {
         COALESCE(c.credit, rgc.credit) AS credit,
         
         -- 교양 테이블은 type(이수구분) 컬럼이 없으므로 '교양선택'으로 기본값 고정
-        COALESCE(c.type, '교양선택') AS type
+        COALESCE(c.type, '교선') AS type
         
       FROM User_Grades ug
       
