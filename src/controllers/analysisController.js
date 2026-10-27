@@ -71,8 +71,8 @@ exports.getGraduationAnalysis = async (req, res) => {
         c.credit,
         c.type
       FROM User_Grades ug
-      JOIN Department_Courses c
-        ON ug.course_id = c.course_id
+     JOIN Department_Courses c
+        ON ug.course_id = c.course_code
       WHERE ug.student_id = ?
       ORDER BY ug.grade_id ASC
     `;
