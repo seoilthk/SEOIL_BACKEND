@@ -164,7 +164,7 @@ exports.getGrades = async (req, res) => {
                 -- 입학년도 + 학년 계산하여 '2023-1학기' 포맷으로 동적 생성
                 CONCAT(s.admission_year + c.year - 1, '-', c.semester, '학기') AS semester
             FROM User_Grades ug
-            JOIN Department_Courses c ON ug.course_id = c.course_id
+            JOIN Department_Courses c ON ug.course_id = c.course_code
             JOIN Students s ON ug.student_id = s.student_id
             WHERE ug.student_id = ?
             ORDER BY ug.grade_id ASC
