@@ -24,7 +24,7 @@ exports.getGraduationAnalysis = async (req, res) => {
         gr.general_required_count
       FROM Users u
       JOIN Departments d
-        ON u.dept_id = d.dept_id
+        ON s.department = d.department_name
       JOIN Grad_Requirements gr
         ON u.dept_id = gr.dept_id
         AND u.entry_year = gr.entry_year
