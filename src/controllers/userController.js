@@ -155,17 +155,31 @@ exports.getGrades = async (req, res) => {
         const query = `
             SELECT 
                 ug.grade_id,
-                c.course_code,               -- 중복 제거 기준 키
-                c.course_name AS name,       -- 프론트엔드 요구 키: name
-                c.credit,
-                c.type,
-                ug.grade AS score,           -- 프론트엔드 요구 키: score
-                ug.status AS is_pass,        -- 프론트엔드 요구 키: is_pass
-                -- 입학년도 + 학년 계산하여 '2023-1학기' 포맷으로 동적 생성
-                CONCAT(s.admission_year + c.year - 1, '-', c.semester, '학기') AS semester
+                ug.course_id AS course_code,
+                -- 전공 테이블에 이름이 없으면 교양 테이블에서 이름을 가져옴
+                COALESCE(c.course_name, rgc.course_name) AS name,
+                
+                -- 전공 테이블에 학점이 없으면 교양 테이블에서 학점을 가져옴
+                COALESCE(c.credit, rgc.credit) AS credit,
+                
+                -- 교양 테이블에는 type 컬럼이 없으므로, 기본값을 '교양선택'으로 지정
+                COALESCE(c.type, '교양선택') AS type,
+                
+                ug.grade AS score,
+                ug.status AS is_pass,
+                
+                -- 교양 테이블은 학기(year, semester) 정보가 없으므로 예외 처리
+                COALESCE(
+                    CONCAT(s.admission_year + c.year - 1, '-', c.semester, '학기'),
+                    '교양(학기공통)'
+                ) AS semester
             FROM User_Grades ug
-            JOIN Department_Courses c ON ug.course_id = c.course_code
             JOIN Students s ON ug.student_id = s.student_id
+            
+            -- 전공 테이블과 교양 테이블 모두 LEFT JOIN으로 연결
+            LEFT JOIN Department_Courses c ON ug.course_id = c.course_code
+            LEFT JOIN Recommended_General_Courses rgc ON ug.course_id = rgc.course_code
+            
             WHERE ug.student_id = ?
             ORDER BY ug.grade_id ASC
         `;
