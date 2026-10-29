@@ -200,6 +200,7 @@ exports.getGraduationAnalysis = async (req, res) => {
     );
 
     // 10. 결과 반환
+    console.log("👉 졸업요건 분석 API 응답 데이터 확인:", JSON.stringify(rows[0], null, 2));
     return res.status(200).json({
       success: true,
       studentId,
