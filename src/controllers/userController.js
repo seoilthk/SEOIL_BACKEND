@@ -154,38 +154,30 @@ exports.getGrades = async (req, res) => {
         // 1. 프론트엔드 명세서에 완벽하게 맞춘 컬럼명(Alias) 및 학기(semester) 문자열 조합
         const query = `
             SELECT 
-                ug.grade_id,
-                ug.course_id AS course_code,
-                -- 전공 테이블에 이름이 없으면 교양 테이블에서 이름을 가져옴
-                COALESCE(c.course_name, rgc.course_name) AS name,
-                
-                -- 전공 테이블에 학점이 없으면 교양 테이블에서 학점을 가져옴
-                COALESCE(c.credit, rgc.credit) AS credit,
-                
-                -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
-                CASE 
-                    WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
-                    WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
-                    WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
+            ug.grade_id,
+            ug.course_id AS course_code,
+            COALESCE(c.course_name, rgc.course_name) AS name,
+            COALESCE(c.credit, rgc.credit) AS credit,
+            
+            CASE 
+                WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
+                WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
+                WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
                 ELSE '교선' 
-                END AS type,
-                
-                ug.grade AS score,
-                ug.status AS is_pass,
-                
-                -- 교양 테이블은 학기(year, semester) 정보가 없으므로 예외 처리
-                -- 프론트엔드가 조합할 수 있도록 year와 semester를 각각 따로 전달 (교양은 0으로 예외처리)
+            END AS type,
+            
+            ug.grade AS score,
+            ug.status AS is_pass,
+            
+            -- 프론트엔드가 연도를 요구할 경우를 대비해 여러 이름으로 동시 제공
             COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
-            COALESCE(c.semester, rgc.semester, 0) AS semester
-            FROM User_Grades ug
-            JOIN Students s ON ug.student_id = s.student_id
+            COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS admission_year,
             
-            -- 전공 테이블과 교양 테이블 모두 LEFT JOIN으로 연결
-            LEFT JOIN Department_Courses c ON ug.course_id = c.course_code
-            LEFT JOIN Recommended_General_Courses rgc ON ug.course_id = rgc.course_code
+            -- 학기 데이터도 확실하게 제공
+            COALESCE(c.semester, rgc.semester, 0) AS semester,
             
-            WHERE ug.student_id = ?
-            ORDER BY ug.grade_id ASC
+            -- 혹시 프론트가 '학년' 데이터를 따로 찾고 있다면 이 값도 유용합니다
+            COALESCE(COALESCE(c.year, rgc.year), 0) AS grade
         `;
         
         const [grades] = await pool.query(query, [studentId]);
