@@ -164,11 +164,11 @@ exports.getGrades = async (req, res) => {
                 
                 -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
                 CASE 
-            WHEN c.type IN ('전필', '전공필수') THEN '전필'
-            WHEN c.type IN ('전선', '전공선택') THEN '전선'
-            WHEN c.type IN ('교필', '교양필수') THEN '교필'
-            ELSE '교선' 
-        END AS type,
+                    WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
+                    WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
+                    WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
+                ELSE '교선' 
+                END AS type,
                 
                 ug.grade AS score,
                 ug.status AS is_pass,
