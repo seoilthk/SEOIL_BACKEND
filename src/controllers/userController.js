@@ -174,10 +174,9 @@ exports.getGrades = async (req, res) => {
                 ug.status AS is_pass,
                 
                 -- 교양 테이블은 학기(year, semester) 정보가 없으므로 예외 처리
-                COALESCE(
-                    CONCAT(s.admission_year + c.year - 1, '-', c.semester, '학기'),
-                    '교양(학기공통)'
-                ) AS semester
+                -- 프론트엔드가 조합할 수 있도록 year와 semester를 각각 따로 전달 (교양은 0으로 예외처리)
+        COALESCE(s.admission_year + c.year - 1, 0) AS year,
+        COALESCE(c.semester, 0) AS semester
             FROM User_Grades ug
             JOIN Students s ON ug.student_id = s.student_id
             
