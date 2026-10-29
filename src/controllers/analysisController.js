@@ -65,15 +65,12 @@ SELECT
     ug.grade_id,
     ug.grade,
     ug.status,
-    -- 기존 로직 호환을 위해 전공 테이블의 PK(course_id)가 없으면 교양 테이블의 PK(rec_id)를 대체 사용
     COALESCE(c.course_id, rgc.rec_id) AS course_id,
     ug.course_id AS course_code,
     
-    -- 전공 테이블에 없으면 교양 테이블에서 데이터 가져오기
     COALESCE(c.course_name, rgc.course_name) AS course_name,
     COALESCE(c.credit, rgc.credit) AS credit,
     
-    -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
     CASE 
         WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
         WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
@@ -81,18 +78,14 @@ SELECT
         ELSE '교선' 
     END AS type,
     
-    -- ✨ 핵심 추가: 프론트엔드가 화면에 바로 띄울 수 있도록 "2021년 1학기" 형태로 조립해서 전달
-    COALESCE(
-        CONCAT(s.admission_year + COALESCE(c.year, rgc.year) - 1, '년 ', COALESCE(c.semester, rgc.semester), '학기'),
-        '교양(학기공통)'
-    ) AS semester
+    -- ✨ 핵심: 연도 숫자 (예: 2021)와 학기 숫자 (예: 1)를 각각 명확하게 전달
+    COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
+    COALESCE(c.semester, rgc.semester, 0) AS semester
 
 FROM User_Grades ug
 
--- 학생 테이블 조인 추가 (입학년도 계산을 위해 필수!)
 JOIN Students s ON ug.student_id = s.student_id
 
--- 핵심: INNER JOIN 대신 두 테이블 모두 LEFT JOIN 처리
 LEFT JOIN Department_Courses c 
     ON ug.course_id = c.course_code
 LEFT JOIN Recommended_General_Courses rgc 
