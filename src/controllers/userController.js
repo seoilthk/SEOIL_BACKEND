@@ -176,7 +176,7 @@ exports.getGrades = async (req, res) => {
                 -- 교양 테이블은 학기(year, semester) 정보가 없으므로 예외 처리
                 -- 프론트엔드가 조합할 수 있도록 year와 semester를 각각 따로 전달 (교양은 0으로 예외처리)
             COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
-            COALESCE(c.semester, rgc.semester, 0) AS semester,
+            COALESCE(c.semester, rgc.semester, 0) AS semester
             FROM User_Grades ug
             JOIN Students s ON ug.student_id = s.student_id
             
