@@ -151,58 +151,59 @@ exports.getGrades = async (req, res) => {
     try {
         const studentId = req.user.student_id;
         
-        // 1. 프론트엔드 명세서에 완벽하게 맞춘 컬럼명(Alias) 및 학기(semester) 문자열 조합
+        // 1. 프론트엔드가 화면에 바로 꽂아서 쓸 수 있도록 semester를 문자열로 완벽하게 조립
         const query = `
             SELECT 
-        ug.grade_id,
-        ug.course_id AS course_code,
-        COALESCE(c.course_name, rgc.course_name) AS name,
-        COALESCE(c.credit, rgc.credit) AS credit,
-        
-        CASE 
-            WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
-            WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
-            WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
-            ELSE '교선' 
-        END AS type,
-        
-        ug.grade AS score,
-        ug.status AS is_pass,
-        
-        COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
-        COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS admission_year,
-        COALESCE(c.semester, rgc.semester, 0) AS semester,
-        COALESCE(COALESCE(c.year, rgc.year), 0) AS grade
+                ug.grade_id,
+                ug.course_id AS course_code,
+                COALESCE(c.course_name, rgc.course_name) AS name,
+                COALESCE(c.credit, rgc.credit) AS credit,
+                
+                CASE 
+                    WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
+                    WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
+                    WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
+                    ELSE '교선' 
+                END AS type,
+                
+                ug.grade AS score,
+                ug.status AS is_pass,
+                
+                -- 프론트가 화면에 바로 띄울 수 있게 "2021년 1학기" 형태로 조립해서 semester로 전달
+                -- (교양 과목은 학기 정보가 없으므로 '교양(학기공통)' 또는 기본값 처리)
+                COALESCE(
+                    CONCAT(s.admission_year + COALESCE(c.year, rgc.year) - 1, '년 ', COALESCE(c.semester, rgc.semester), '학기'),
+                    '교양(학기공통)'
+                ) AS semester,
+                
+                -- 혹시 몰라 숫자 데이터도 각각 남겨둠
+                COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
+                COALESCE(c.semester, rgc.semester, 0) AS semester_num
 
-    FROM User_Grades ug
-    JOIN Students s ON ug.student_id = s.student_id
-    LEFT JOIN Department_Courses c ON ug.course_id = c.course_code
-    LEFT JOIN Recommended_General_Courses rgc ON ug.course_id = rgc.course_code
-    
-    WHERE ug.student_id = ?
-    ORDER BY ug.grade_id ASC
+            FROM User_Grades ug
+            JOIN Students s ON ug.student_id = s.student_id
+            LEFT JOIN Department_Courses c ON ug.course_id = c.course_code
+            LEFT JOIN Recommended_General_Courses rgc ON ug.course_id = rgc.course_code
+            
+            WHERE ug.student_id = ?
+            ORDER BY ug.grade_id ASC
         `;
         
         const [grades] = await pool.query(query, [studentId]);
         
         // 2. 재수강 및 중복 이수 과목 제거 로직 (course_code 기준)
-        // - 동일 과목이 여러 학기에 개설(course_id 다름, course_code 같음)되어도 1개만 유지
-        // - ORDER BY grade_id ASC 후 덮어쓰므로, 재수강 시 가장 최근 성적이 최종 반영됨
         const courseMap = new Map();
         
         grades.forEach(row => {
-            // 이수 완료된 유효한 성적만 필터링
             const isPassed = row.is_pass === '이수완료' || row.is_pass === '1' || row.is_pass === true || row.score !== 'F';
             if (isPassed) {
-                // course_code 기준으로 중복 제거 (같은 과목을 다른 학기에 이수해도 1개만 유지)
                 courseMap.set(row.course_code, row);
             }
         });
         
-        // 중복 제거된 최종 배열
         const uniqueGrades = Array.from(courseMap.values());
 
-        // 3. 프론트엔드가 요구하는 { "grades": 배열 } 형태로 반환
+        // 3. 데이터 확인용 로그 및 반환
         console.log("👉 프론트엔드로 보내는 첫 번째 성적 데이터:", uniqueGrades[0]);
 
         return res.status(200).json({ 
