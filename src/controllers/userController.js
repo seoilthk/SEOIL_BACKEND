@@ -203,6 +203,8 @@ exports.getGrades = async (req, res) => {
         const uniqueGrades = Array.from(courseMap.values());
 
         // 3. 프론트엔드가 요구하는 { "grades": 배열 } 형태로 반환
+        console.log("👉 프론트엔드로 보내는 첫 번째 성적 데이터:", uniqueGrades[0]);
+
         return res.status(200).json({ 
             success: true, 
             grades: uniqueGrades 
