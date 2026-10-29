@@ -60,39 +60,28 @@ exports.getGraduationAnalysis = async (req, res) => {
 
     // 2. 성적 데이터 조회
     const gradeQuery = `
-      // analysisController.js 내부의 쿼리 중 성적 관련 SELECT 부분
-SELECT 
-    ug.grade_id,
-    ug.grade,
-    ug.status,
-    COALESCE(c.course_id, rgc.rec_id) AS course_id,
-    ug.course_id AS course_code,
-    
-    COALESCE(c.course_name, rgc.course_name) AS course_name,
-    COALESCE(c.credit, rgc.credit) AS credit,
-    
-    CASE 
-        WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
-        WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
-        WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
-        ELSE '교선' 
-    END AS type,
-    
-    -- ✨ 핵심: 연도 숫자 (예: 2021)와 학기 숫자 (예: 1)를 각각 명확하게 전달
-    COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
-    COALESCE(c.semester, rgc.semester, 0) AS semester
-
-FROM User_Grades ug
-
-JOIN Students s ON ug.student_id = s.student_id
-
-LEFT JOIN Department_Courses c 
-    ON ug.course_id = c.course_code
-LEFT JOIN Recommended_General_Courses rgc 
-    ON ug.course_id = rgc.course_code
-    
-WHERE ug.student_id = ?
-ORDER BY ug.grade_id ASC
+      SELECT 
+        ug.grade_id,
+        ug.grade,
+        ug.status,
+        COALESCE(c.course_id, rgc.rec_id) AS course_id,
+        ug.course_id AS course_code,
+        COALESCE(c.course_name, rgc.course_name) AS course_name,
+        COALESCE(c.credit, rgc.credit) AS credit,
+        CASE 
+            WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
+            WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
+            WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
+            ELSE '교선' 
+        END AS type,
+        COALESCE(s.admission_year + COALESCE(c.year, rgc.year) - 1, 0) AS year,
+        COALESCE(c.semester, rgc.semester, 0) AS semester
+    FROM User_Grades ug
+    JOIN Students s ON ug.student_id = s.student_id
+    LEFT JOIN Department_Courses c ON ug.course_id = c.course_code
+    LEFT JOIN Recommended_General_Courses rgc ON ug.course_id = rgc.course_code
+    WHERE ug.student_id = ?
+    ORDER BY ug.grade_id ASC
     `;
 
     const [gradeRows] = await db.query(gradeQuery, [studentId]);
