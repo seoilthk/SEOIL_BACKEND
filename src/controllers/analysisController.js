@@ -73,12 +73,13 @@ exports.getGraduationAnalysis = async (req, res) => {
         COALESCE(c.credit, rgc.credit) AS credit,
         
         -- DB에 어떤 형태로 들어있든 무조건 프론트가 원하는 2글자로 변환
+        // userController.js의 CASE 문 수정
         CASE 
-            WHEN c.type IN ('전필', '전공필수') THEN '전필'
-            WHEN c.type IN ('전선', '전공선택') THEN '전선'
-            WHEN c.type IN ('교필', '교양필수') THEN '교필'
-            ELSE '교선' 
-        END AS type
+          WHEN COALESCE(c.type, rgc.type) IN ('전필', '전공필수') THEN '전필'
+          WHEN COALESCE(c.type, rgc.type) IN ('전선', '전공선택') THEN '전선'
+          WHEN COALESCE(c.type, rgc.type) IN ('교필', '교양필수') THEN '교필'
+        ELSE '교선' 
+      END AS type,
         
       FROM User_Grades ug
       
